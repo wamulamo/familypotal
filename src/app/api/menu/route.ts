@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getOptionalItemsByIds } from "@/config/menu";
 
-/** 固定メニュー（常に表示） */
+/** 固定メニュー（常に表示）。unreadKey は "board" | null で型指定（as const は null に使えない） */
 const FIXED_ITEMS: { path: string; label: string; unreadKey: "board" | null; icon: string }[] = [
   { path: "/board", label: "かぞく伝言板", unreadKey: "board", icon: "📋" },
   { path: "/ai", label: "AIへの質問", unreadKey: null, icon: "🤖" },
