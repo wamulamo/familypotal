@@ -3,9 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 import { getOptionalItemsByIds } from "@/config/menu";
 
 /** 固定メニュー（常に表示） */
-const FIXED_ITEMS = [
-  { path: "/board", label: "かぞく伝言板", unreadKey: "board" as const, icon: "📋" },
-  { path: "/ai", label: "AIへの質問", unreadKey: null as const, icon: "🤖" },
+const FIXED_ITEMS: { path: string; label: string; unreadKey: "board" | null; icon: string }[] = [
+  { path: "/board", label: "かぞく伝言板", unreadKey: "board", icon: "📋" },
+  { path: "/ai", label: "AIへの質問", unreadKey: null, icon: "🤖" },
 ];
 
 export async function GET() {
