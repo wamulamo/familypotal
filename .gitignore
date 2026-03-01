@@ -1,0 +1,13 @@
+# 環境変数（秘密情報を含むため push しない）
+.env*.local
+.env
+
+# 依存関係・ビルド
+node_modules
+.next
+out
+
+# その他
+.DS_Store
+*.log
+.vercel

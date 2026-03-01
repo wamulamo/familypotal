@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #fef9f0;
+  --surface: #ffffff;
+  --text: #1a1a1a;
+  --text-muted: #555;
+  --accent: #2d7d46;
+  --bubble-user: #e8f5e9;
+  --bubble-ai: #fff8e1;
+  --border: #e0e0e0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+}
+
+@media (min-width: 768px) {
+  html {
+    font-size: 18px;
+  }
+}

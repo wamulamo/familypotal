@@ -1,0 +1,314 @@
+"use client";
+
+import { useState } from "react";
+import { OPTIONAL_MENU_ITEMS } from "@/config/menu";
+import { getChannelId, getPlaylistId } from "@/lib/youtube";
+
+interface SettingsFormProps {
+  initial: {
+    system_prompt: string;
+    ng_words: string[];
+    semantic_filter_prompt: string;
+    enabled_menu_ids: string[];
+    allowed_youtube_urls: string[];
+    allowed_youtube_channel_ids: string[];
+    allowed_youtube_playlist_ids: string[];
+    daily_watch_limit_minutes: number;
+  };
+}
+
+export function SettingsForm({ initial }: SettingsFormProps) {
+  const [systemPrompt, setSystemPrompt] = useState(initial.system_prompt);
+  const [ngWordsText, setNgWordsText] = useState(
+    Array.isArray(initial.ng_words) ? initial.ng_words.join("\n") : ""
+  );
+  const [semanticFilterPrompt, setSemanticFilterPrompt] = useState(
+    initial.semantic_filter_prompt
+  );
+  const [enabledMenuIds, setEnabledMenuIds] = useState<Set<string>>(
+    () => new Set(Array.isArray(initial.enabled_menu_ids) ? initial.enabled_menu_ids : [])
+  );
+  const [youtubeUrlsText, setYoutubeUrlsText] = useState(
+    Array.isArray(initial.allowed_youtube_urls) ? initial.allowed_youtube_urls.join("\n") : ""
+  );
+  const [youtubeChannelsText, setYoutubeChannelsText] = useState(
+    Array.isArray(initial.allowed_youtube_channel_ids) ? initial.allowed_youtube_channel_ids.join("\n") : ""
+  );
+  const [youtubePlaylistsText, setYoutubePlaylistsText] = useState(
+    Array.isArray(initial.allowed_youtube_playlist_ids) ? initial.allowed_youtube_playlist_ids.join("\n") : ""
+  );
+  const [dailyWatchLimit, setDailyWatchLimit] = useState(
+    Number(initial.daily_watch_limit_minutes) || 30
+  );
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<"success" | "success_need_migration" | "success_need_channel_migration" | "error" | null>(null);
+  const [errorDetail, setErrorDetail] = useState<string | null>(null);
+  const [clearingHistory, setClearingHistory] = useState(false);
+  const [historyCleared, setHistoryCleared] = useState(false);
+
+  const clearAiHistory = async () => {
+    if (!confirm("AIチャットの履歴をすべて削除します。よろしいですか？")) return;
+    setClearingHistory(true);
+    setHistoryCleared(false);
+    try {
+      const res = await fetch("/api/messages?channel=ai&keepCount=0", { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error ?? "削除に失敗しました");
+      }
+      setHistoryCleared(true);
+    } catch (e) {
+      setMessage("error");
+      setErrorDetail(e instanceof Error ? e.message : "削除に失敗しました");
+    } finally {
+      setClearingHistory(false);
+    }
+  };
+
+  const toggleMenu = (id: string) => {
+    setEnabledMenuIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const resolveChannelIds = async (lines: string[]): Promise<string[]> => {
+    const ids: string[] = [];
+    for (const line of lines) {
+      const id = getChannelId(line);
+      if (id) {
+        ids.push(id);
+        continue;
+      }
+      const r = await fetch(
+        "/api/youtube/resolve-channel?input=" + encodeURIComponent(line.trim())
+      );
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.channelId) {
+        ids.push(d.channelId);
+      } else if (!r.ok && d.error) {
+        throw new Error(d.error);
+      }
+    }
+    return ids;
+  };
+
+  const save = async () => {
+    setSaving(true);
+    setMessage(null);
+    setErrorDetail(null);
+    const ngWords = ngWordsText
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const channelLines = youtubeChannelsText
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    try {
+      const allowed_youtube_channel_ids = await resolveChannelIds(channelLines);
+      const res = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          system_prompt: systemPrompt,
+          ng_words: ngWords,
+          semantic_filter_prompt: semanticFilterPrompt,
+          enabled_menu_ids: Array.from(enabledMenuIds),
+          allowed_youtube_urls: youtubeUrlsText.split("\n").map((s) => s.trim()).filter(Boolean),
+          allowed_youtube_channel_ids,
+          allowed_youtube_playlist_ids: youtubePlaylistsText
+            .split("\n")
+            .map((s) => getPlaylistId(s))
+            .filter((id): id is string => id !== null),
+          daily_watch_limit_minutes: Math.max(1, Math.min(1440, dailyWatchLimit)),
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error ?? "保存できませんでした");
+      }
+      const data = await res.json().catch(() => ({}));
+      if (data._channel_ids_skipped) setMessage("success_need_channel_migration");
+      else if (data._menu_ids_skipped) setMessage("success_need_migration");
+      else setMessage("success");
+    } catch (e) {
+      setMessage("error");
+      setErrorDetail(e instanceof Error ? e.message : "保存できませんでした");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6 mt-6">
+      <label className="block">
+        <span className="block text-lg font-bold mb-2">AI システムプロンプト</span>
+        <p className="text-base text-[var(--text-muted)] mb-2">
+          AIの口調や回答のルールを指定します
+        </p>
+        <textarea
+          value={systemPrompt}
+          onChange={(e) => setSystemPrompt(e.target.value)}
+          rows={5}
+          className="w-full text-chat-input px-4 py-3 rounded-xl border-2 border-[var(--border)] focus:border-[var(--accent)] focus:outline-none"
+        />
+      </label>
+
+      <label className="block">
+        <span className="block text-lg font-bold mb-2">NGワードリスト</span>
+        <p className="text-base text-[var(--text-muted)] mb-2">
+          1行に1つ。子どもがこの語を使うとAIは応答しません
+        </p>
+        <textarea
+          value={ngWordsText}
+          onChange={(e) => setNgWordsText(e.target.value)}
+          rows={4}
+          placeholder="例：&#10;不適切な語&#10;禁止語"
+          className="w-full text-chat-input px-4 py-3 rounded-xl border-2 border-[var(--border)] focus:border-[var(--accent)] focus:outline-none"
+        />
+      </label>
+
+      <div className="block">
+        <span className="block text-lg font-bold mb-2">許可するYouTube動画</span>
+        <p className="text-base text-[var(--text-muted)] mb-2">
+          1行に1つ、許可する動画のURLを入力します。未入力の場合は動画ページに何も表示されません
+        </p>
+        <textarea
+          value={youtubeUrlsText}
+          onChange={(e) => setYoutubeUrlsText(e.target.value)}
+          rows={4}
+          placeholder="https://www.youtube.com/watch?v=xxxxx&#10;https://youtu.be/xxxxx"
+          className="w-full text-chat-input px-4 py-3 rounded-xl border-2 border-[var(--border)] focus:border-[var(--accent)] focus:outline-none"
+        />
+      </div>
+
+      <div className="block">
+        <span className="block text-lg font-bold mb-2">許可するYouTubeチャンネル</span>
+        <p className="text-base text-[var(--text-muted)] mb-2">
+          1行に1つ、チャンネルURLまたはチャンネルID（UCで始まる24文字）を入力すると、そのチャンネルの直近動画が一括で許可されます。YouTube Data API キーが必要です
+        </p>
+        <textarea
+          value={youtubeChannelsText}
+          onChange={(e) => setYoutubeChannelsText(e.target.value)}
+          rows={3}
+          placeholder="https://www.youtube.com/channel/UCxxxxxxxxxxxxxxxxxxxxx"
+          className="w-full text-chat-input px-4 py-3 rounded-xl border-2 border-[var(--border)] focus:border-[var(--accent)] focus:outline-none"
+        />
+      </div>
+
+      <div className="block">
+        <span className="block text-lg font-bold mb-2">許可するYouTubeプレイリスト（子どもに見せたいリスト）</span>
+        <p className="text-base text-[var(--text-muted)] mb-2">
+          1行に1つ、プレイリストのURLを入力すると、そのリスト内の動画がまとめて許可されます。YouTube Data API キーが必要です
+        </p>
+        <textarea
+          value={youtubePlaylistsText}
+          onChange={(e) => setYoutubePlaylistsText(e.target.value)}
+          rows={3}
+          placeholder="https://www.youtube.com/playlist?list=PLxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          className="w-full text-chat-input px-4 py-3 rounded-xl border-2 border-[var(--border)] focus:border-[var(--accent)] focus:outline-none"
+        />
+      </div>
+
+      <div className="block">
+        <span className="block text-lg font-bold mb-2">1日の視聴時間制限（分）</span>
+        <p className="text-base text-[var(--text-muted)] mb-2">
+          1人あたりの1日合計視聴時間の上限です（1〜1440分）
+        </p>
+        <input
+          type="number"
+          min={1}
+          max={1440}
+          value={dailyWatchLimit}
+          onChange={(e) => setDailyWatchLimit(Number(e.target.value) || 30)}
+          className="w-24 px-3 py-2 rounded-lg border-2 border-[var(--border)] focus:border-[var(--accent)] focus:outline-none"
+        />
+        <span className="ml-2 text-[var(--text-muted)]">分</span>
+      </div>
+
+      <div className="block">
+        <span className="block text-lg font-bold mb-2">サイドメニューに表示する機能</span>
+        <p className="text-base text-[var(--text-muted)] mb-2">
+          使用する機能にチェックを入れるとサイドメニューに表示されます
+        </p>
+        <ul className="space-y-2">
+          {OPTIONAL_MENU_ITEMS.map((item) => (
+            <li key={item.id}>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={enabledMenuIds.has(item.id)}
+                  onChange={() => toggleMenu(item.id)}
+                  className="w-4 h-4 rounded border-[var(--border)]"
+                />
+                <span>{item.label}</span>
+              </label>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <label className="block">
+        <span className="block text-lg font-bold mb-2">セマンティック・フィルター</span>
+        <p className="text-base text-[var(--text-muted)] mb-2">
+          禁止したいトピックや概念を指定します。AIがこの内容に応答しないようにします
+        </p>
+        <textarea
+          value={semanticFilterPrompt}
+          onChange={(e) => setSemanticFilterPrompt(e.target.value)}
+          rows={4}
+          className="w-full text-chat-input px-4 py-3 rounded-xl border-2 border-[var(--border)] focus:border-[var(--accent)] focus:outline-none"
+        />
+      </label>
+
+      <div className="block">
+        <span className="block text-lg font-bold mb-2">AIチャット履歴</span>
+        <p className="text-base text-[var(--text-muted)] mb-2">
+          AIへの質問のやりとりをすべて削除します。削除後は元に戻せません
+        </p>
+        <button
+          type="button"
+          onClick={clearAiHistory}
+          disabled={clearingHistory}
+          className="px-4 py-2 rounded-xl border-2 border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-950/30 disabled:opacity-50"
+        >
+          {clearingHistory ? "削除中…" : "AIチャットの履歴をすべて削除"}
+        </button>
+        {historyCleared && (
+          <p className="mt-2 text-green-600 dark:text-green-400 font-medium">履歴を削除しました</p>
+        )}
+      </div>
+
+      {message === "success" && (
+        <p className="text-green-600 font-medium">保存しました</p>
+      )}
+      {message === "success_need_migration" && (
+        <p className="text-amber-600 font-medium">
+          保存しました（追加メニューのオン/オフはマイグレーション 004 を実行すると利用できます）
+        </p>
+      )}
+      {message === "success_need_channel_migration" && (
+        <p className="text-amber-600 font-medium">
+          保存しました（チャンネル許可はマイグレーション 005 を実行すると利用できます）
+        </p>
+      )}
+      {message === "error" && (
+        <p className="text-red-600 font-medium">
+          {errorDetail ?? "保存できませんでした"}
+        </p>
+      )}
+
+      <button
+        type="button"
+        onClick={save}
+        disabled={saving}
+        className="w-full py-4 rounded-xl bg-[var(--accent)] text-white font-bold text-xl disabled:opacity-50"
+      >
+        {saving ? "保存中…" : "保存する"}
+      </button>
+    </div>
+  );
+}
