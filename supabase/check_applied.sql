@@ -77,4 +77,13 @@ SELECT
       AND table_name = 'chat_settings'
       AND column_name = 'role_icons'
   )
+UNION ALL
+SELECT
+  '009_role_icons_storage',
+  exists (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'storage'
+      AND tablename = 'objects'
+      AND policyname = 'role-icons upload'
+  )
 ORDER BY migration;

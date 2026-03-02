@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRoleIcons } from "@/contexts/RoleIconsContext";
+import { RoleIcon } from "@/components/RoleIcon";
 import type { Message } from "@/types/database";
 
 const ROLE_LABELS: Record<"michi" | "papa" | "mama", string> = {
@@ -217,8 +218,8 @@ export function Chat({ role, displayName }: ChatProps) {
             >
               <span className="font-bold text-sm block mb-1 opacity-80 flex items-center gap-1.5">
                 {m.role !== "ai" && (
-                  <span className="text-lg leading-none" aria-hidden>
-                    {roleIcons[m.role]}
+                  <span className="inline-flex" aria-hidden>
+                    <RoleIcon role={m.role} value={roleIcons[m.role]} size="xs" />
                   </span>
                 )}
                 {m.role === "ai" ? "AI" : ROLE_LABELS[m.role]}
@@ -226,12 +227,7 @@ export function Chat({ role, displayName }: ChatProps) {
               <p className="whitespace-pre-wrap break-words">{m.content}</p>
             </div>
             {m.role !== "ai" && (
-              <span
-                className="text-2xl w-9 h-9 flex items-center justify-center shrink-0 rounded-full bg-[var(--surface)]"
-                aria-hidden
-              >
-                {roleIcons[m.role]}
-              </span>
+              <RoleIcon role={m.role} value={roleIcons[m.role]} size="sm" className="shrink-0" />
             )}
           </div>
         ))}

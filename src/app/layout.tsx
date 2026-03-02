@@ -6,6 +6,11 @@ export const metadata: Metadata = {
   description: "子どもと保護者のファミリーポータル",
   viewport: { width: "device-width", initialScale: 1, viewportFit: "cover" },
   themeColor: "#4f46e5",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "かぞくポータル",
+  },
 };
 
 export default function RootLayout({

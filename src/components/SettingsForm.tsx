@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { OPTIONAL_MENU_ITEMS } from "@/config/menu";
+import { RoleIcon } from "@/components/RoleIcon";
 import { getChannelId, getPlaylistId } from "@/lib/youtube";
 
 interface SettingsFormProps {
@@ -42,6 +43,8 @@ export function SettingsForm({ initial }: SettingsFormProps) {
     Number(initial.daily_watch_limit_minutes) || 30
   );
   const [roleIcons, setRoleIcons] = useState(initial.role_icons ?? { papa: "👨", mama: "👩", michi: "👧" });
+  const [uploading, setUploading] = useState<"papa" | "mama" | "michi" | null>(null);
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({ papa: null, mama: null, michi: null });
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<"success" | "success_need_migration" | "success_need_channel_migration" | "error" | null>(null);
   const [errorDetail, setErrorDetail] = useState<string | null>(null);
@@ -65,6 +68,29 @@ export function SettingsForm({ initial }: SettingsFormProps) {
     } finally {
       setClearingHistory(false);
     }
+  };
+
+  const uploadIcon = async (r: "papa" | "mama" | "michi", file: File) => {
+    setUploading(r);
+    try {
+      const formData = new FormData();
+      formData.set("role", r);
+      formData.set("file", file);
+      const res = await fetch("/api/role-icons/upload", { method: "POST", body: formData });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "アップロードに失敗しました");
+      if (data.url) setRoleIcons((prev) => ({ ...prev, [r]: data.url }));
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "アップロードに失敗しました");
+    } finally {
+      setUploading(null);
+      const input = fileInputRefs.current[r];
+      if (input) input.value = "";
+    }
+  };
+
+  const clearIcon = (r: "papa" | "mama" | "michi") => {
+    setRoleIcons((prev) => ({ ...prev, [r]: r === "papa" ? "👨" : r === "mama" ? "👩" : "👧" }));
   };
 
   const toggleMenu = (id: string) => {
@@ -154,23 +180,45 @@ export function SettingsForm({ initial }: SettingsFormProps) {
       <div className="block">
         <span className="block text-lg font-bold mb-2">メンバーのアイコン</span>
         <p className="text-base text-[var(--text-muted)] mb-3">
-          伝言板・チャットで表示するパパ・ママ・みちのアイコンです。絵文字などを1文字入力してください
+          伝言板・チャットで表示するアイコンです。スマホの写真を選択すると丸く表示されます。未設定の場合は絵文字になります
         </p>
         <div className="grid grid-cols-3 gap-4">
           {(["papa", "mama", "michi"] as const).map((r) => (
-            <label key={r} className="flex flex-col gap-1">
+            <div key={r} className="flex flex-col items-center gap-2">
               <span className="text-sm font-medium text-[var(--text-muted)]">
                 {r === "papa" ? "パパ" : r === "mama" ? "ママ" : "みち"}
               </span>
+              <div className="relative">
+                <RoleIcon role={r} value={roleIcons[r] ?? ""} size="lg" className="w-20 h-20" />
+              </div>
               <input
-                type="text"
-                value={roleIcons[r] ?? ""}
-                onChange={(e) => setRoleIcons((prev) => ({ ...prev, [r]: e.target.value.slice(0, 4) }))}
-                maxLength={4}
-                className="w-full text-center text-2xl px-3 py-2 rounded-xl border-2 border-[var(--border)] focus:border-[var(--accent)] focus:outline-none"
-                placeholder={r === "papa" ? "👨" : r === "mama" ? "👩" : "👧"}
+                ref={(el) => { fileInputRefs.current[r] = el; }}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="sr-only"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) uploadIcon(r, f);
+                }}
               />
-            </label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => fileInputRefs.current[r]?.click()}
+                  disabled={uploading !== null}
+                  className="px-3 py-1.5 rounded-lg text-sm bg-[var(--accent)] text-white hover:opacity-90 disabled:opacity-50"
+                >
+                  {uploading === r ? "送信中…" : "写真を選ぶ"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => clearIcon(r)}
+                  className="px-3 py-1.5 rounded-lg text-sm border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--border)]"
+                >
+                  絵文字に戻す
+                </button>
+              </div>
+            </div>
           ))}
         </div>
       </div>

@@ -8,7 +8,7 @@
 
 | # | 項目 | 確認 |
 |---|------|------|
-| 1 | Supabase マイグレーション 001〜007 をすべて実行済み | ☐ |
+| 1 | Supabase マイグレーション 001〜009 をすべて実行済み（写真アイコンを使う場合） | ☐ |
 | 2 | ローカルで `npm run dev` し、みち・パパ・ママでログインできる | ☐ |
 | 3 | GitHub にリポジトリを作成し、コードを push（`.env.local` は含めない） | ☐ |
 | 4 | Vercel でプロジェクト作成・デプロイ | ☐ |
@@ -44,6 +44,8 @@
    - `005_youtube_settings_and_watch_logs.sql`
    - `006_allowed_youtube_playlist_ids.sql`（005 実行済みならこれのみでも可）
    - `007_messages_delete_policy.sql`（AIチャット履歴削除に必要）
+   - `008_role_icons.sql`（メンバーアイコン設定用）
+   - **写真アイコンを使う場合**: Storage → New bucket → 名前 `role-icons`、**Public** にチェックして作成 → その後 `009_role_icons_storage.sql` を実行
 3. **Authentication** → **URL Configuration** に  
    `http://localhost:3000/auth/callback` を追加（ローカル用）
 

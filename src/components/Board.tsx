@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRole } from "@/contexts/RoleContext";
 import { useRoleIcons } from "@/contexts/RoleIconsContext";
+import { RoleIcon } from "@/components/RoleIcon";
 import type { Message } from "@/types/database";
 
 const BOARD_ORDER: ("papa" | "mama" | "michi")[] = ["papa", "mama", "michi"];
@@ -158,12 +159,7 @@ export function Board() {
                 <span className="text-chat-xs font-bold text-[var(--text-muted)] mb-1">
                   {ROLE_LABELS[r]}
                 </span>
-                <div
-                  className="w-12 h-12 rounded-full flex items-center justify-center text-2xl bg-[var(--surface)] border-2 border-[var(--border)] shadow-sm"
-                  aria-hidden
-                >
-                  {roleIcons[r]}
-                </div>
+                <RoleIcon role={r} value={roleIcons[r]} size="md" className="shadow-sm" />
               </div>
 
               {/* 右: 吹き出し */}
