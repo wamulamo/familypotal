@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useRoleIcons } from "@/contexts/RoleIconsContext";
 import type { Message } from "@/types/database";
 
 const ROLE_LABELS: Record<"michi" | "papa" | "mama", string> = {
@@ -10,11 +11,6 @@ const ROLE_LABELS: Record<"michi" | "papa" | "mama", string> = {
   mama: "ママ",
 };
 
-const ROLE_ICONS: Record<"michi" | "papa" | "mama", string> = {
-  michi: "🧒",
-  papa: "👨",
-  mama: "👩",
-};
 
 interface ChatProps {
   role: "michi" | "papa" | "mama";
@@ -24,6 +20,7 @@ interface ChatProps {
 type InputTab = "chat" | "ai";
 
 export function Chat({ role, displayName }: ChatProps) {
+  const roleIcons = useRoleIcons();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [inputTab, setInputTab] = useState<InputTab>("chat");
@@ -221,7 +218,7 @@ export function Chat({ role, displayName }: ChatProps) {
               <span className="font-bold text-sm block mb-1 opacity-80 flex items-center gap-1.5">
                 {m.role !== "ai" && (
                   <span className="text-lg leading-none" aria-hidden>
-                    {ROLE_ICONS[m.role]}
+                    {roleIcons[m.role]}
                   </span>
                 )}
                 {m.role === "ai" ? "AI" : ROLE_LABELS[m.role]}
@@ -233,7 +230,7 @@ export function Chat({ role, displayName }: ChatProps) {
                 className="text-2xl w-9 h-9 flex items-center justify-center shrink-0 rounded-full bg-[var(--surface)]"
                 aria-hidden
               >
-                {ROLE_ICONS[m.role]}
+                {roleIcons[m.role]}
               </span>
             )}
           </div>

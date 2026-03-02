@@ -23,7 +23,7 @@ interface MenuItem {
   icon?: string;
 }
 
-export function Sidebar({ role }: { role: "michi" | "papa" | "mama" }) {
+export function Sidebar({ role, onNavigate }: { role: "michi" | "papa" | "mama"; onNavigate?: () => void }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -33,17 +33,16 @@ export function Sidebar({ role }: { role: "michi" | "papa" | "mama" }) {
   const supabase = createClient();
 
   useEffect(() => {
-    fetch("/api/menu")
-      .then((r) => (r.ok ? r.json() : { items: [] }))
-      .then((d) => setMenuItems(d?.items ?? []))
-      .catch(() => setMenuItems([]));
-  }, [pathname]);
-
-  useEffect(() => {
-    fetch("/api/board/latest")
-      .then((r) => (r.ok ? r.json() : { latest_at: null }))
-      .then((d) => setBoardLatestAt(d?.latest_at ?? null))
-      .catch(() => setBoardLatestAt(null));
+    fetch("/api/sidebar-data")
+      .then((r) => (r.ok ? r.json() : { items: [], latest_at: null }))
+      .then((d) => {
+        setMenuItems(d?.items ?? []);
+        setBoardLatestAt(d?.latest_at ?? null);
+      })
+      .catch(() => {
+        setMenuItems([]);
+        setBoardLatestAt(null);
+      });
   }, [pathname]);
 
   useEffect(() => {
@@ -84,6 +83,7 @@ export function Sidebar({ role }: { role: "michi" | "papa" | "mama" }) {
           <Link
             key={item.path}
             href={item.path}
+            onClick={onNavigate}
             className={`flex items-center justify-between gap-2 ${pathname === item.path ? `${base} ${active}` : `${base} ${inactive}`}`}
           >
             <span className="flex items-center gap-2">
@@ -115,7 +115,7 @@ export function Sidebar({ role }: { role: "michi" | "papa" | "mama" }) {
                 <Link
                   href="/settings"
                   className="block px-4 py-2 text-sm text-[var(--text)] hover:bg-[var(--border)]"
-                  onClick={() => setMenuOpen(false)}
+                  onClick={() => { setMenuOpen(false); onNavigate?.(); }}
                 >
                   設定
                 </Link>

@@ -57,6 +57,7 @@ export async function PUT(req: Request) {
     allowed_youtube_channel_ids?: string[];
     allowed_youtube_playlist_ids?: string[];
     daily_watch_limit_minutes?: number;
+    role_icons?: { papa?: string; mama?: string; michi?: string };
   };
   try {
     body = await req.json();
@@ -81,6 +82,7 @@ export async function PUT(req: Request) {
     ...(body.allowed_youtube_channel_ids !== undefined && { allowed_youtube_channel_ids: body.allowed_youtube_channel_ids }),
     ...(body.allowed_youtube_playlist_ids !== undefined && { allowed_youtube_playlist_ids: body.allowed_youtube_playlist_ids }),
     ...(body.daily_watch_limit_minutes !== undefined && { daily_watch_limit_minutes: body.daily_watch_limit_minutes }),
+    ...(body.role_icons !== undefined && { role_icons: body.role_icons }),
     updated_at: new Date().toISOString(),
   };
 
@@ -128,6 +130,7 @@ export async function PUT(req: Request) {
     .order("created_at", { ascending: true });
   const threadId = threads?.[0]?.id ?? null;
 
+  const defaultIcons = { papa: "👨", mama: "👩", michi: "👧" };
   let insertPayload = {
     thread_id: threadId,
     system_prompt: body.system_prompt ?? "",
@@ -138,6 +141,7 @@ export async function PUT(req: Request) {
     allowed_youtube_channel_ids: body.allowed_youtube_channel_ids ?? [],
     allowed_youtube_playlist_ids: body.allowed_youtube_playlist_ids ?? [],
     daily_watch_limit_minutes: body.daily_watch_limit_minutes ?? 30,
+    role_icons: body.role_icons ?? defaultIcons,
   };
   let result = await supabase.from("chat_settings").insert(insertPayload).select().single();
   if (result.error && (result.error.message.includes("enabled_menu_ids") || result.error.message.includes("does not exist"))) {

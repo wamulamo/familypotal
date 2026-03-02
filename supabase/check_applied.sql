@@ -68,4 +68,13 @@ SELECT
       AND tablename = 'messages'
       AND policyname = 'messages delete'
   )
+UNION ALL
+SELECT
+  '008_role_icons',
+  exists (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'chat_settings'
+      AND column_name = 'role_icons'
+  )
 ORDER BY migration;

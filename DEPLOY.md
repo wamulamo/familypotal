@@ -83,6 +83,16 @@ git push -u origin main
 - 初回の `git push` で GitHub の **ユーザー名** と **パスワード** を聞かれた場合:
   - パスワードには **Personal Access Token（PAT）** を使います。GitHub → Settings → Developer settings → Personal access tokens で「Generate new token」し、`repo` にチェックを入れて発行したトークンを、パスワードの代わりに入力します。
 
+#### すでにリポジトリがある場合（変更を反映するとき）
+
+ターミナルでプロジェクトのフォルダに移動してから、次を**順に**実行します。
+
+```bash
+git add .
+git commit -m "コミットメッセージ（例: メンバーアイコン設定を追加）"
+git push
+```
+
 ### 2-2. Vercel でプロジェクト作成
 
 1. [vercel.com](https://vercel.com) にログイン（GitHub 連携推奨）

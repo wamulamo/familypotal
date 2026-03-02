@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { Sidebar } from "@/components/Sidebar";
+import { ResponsiveLayout } from "@/components/ResponsiveLayout";
 import { RoleProvider } from "@/contexts/RoleContext";
+import { RoleIconsProvider } from "@/contexts/RoleIconsContext";
 
 export default async function MainLayout({
   children,
@@ -23,11 +24,10 @@ export default async function MainLayout({
   const role = (profile?.role as "michi" | "papa" | "mama") ?? "michi";
 
   return (
-    <div className="flex h-screen bg-[var(--bg)]">
-      <Sidebar role={role} />
-      <main className="flex-1 min-w-0 min-h-0 overflow-hidden">
-        <RoleProvider role={role}>{children}</RoleProvider>
-      </main>
-    </div>
+    <ResponsiveLayout role={role}>
+      <RoleProvider role={role}>
+        <RoleIconsProvider>{children}</RoleIconsProvider>
+      </RoleProvider>
+    </ResponsiveLayout>
   );
 }

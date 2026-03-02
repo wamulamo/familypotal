@@ -45,6 +45,14 @@ export default async function SettingsPage() {
             allowed_youtube_channel_ids: (settings as { allowed_youtube_channel_ids?: string[] } | null)?.allowed_youtube_channel_ids ?? [],
             allowed_youtube_playlist_ids: (settings as { allowed_youtube_playlist_ids?: string[] } | null)?.allowed_youtube_playlist_ids ?? [],
             daily_watch_limit_minutes: (settings as { daily_watch_limit_minutes?: number } | null)?.daily_watch_limit_minutes ?? 30,
+            role_icons: (() => {
+              const raw = (settings as { role_icons?: { papa?: string; mama?: string; michi?: string } } | null)?.role_icons;
+              return {
+                papa: raw?.papa ?? "👨",
+                mama: raw?.mama ?? "👩",
+                michi: raw?.michi ?? "👧",
+              };
+            })(),
           }}
         />
         <p className="mt-6 text-base text-[var(--text-muted)]">

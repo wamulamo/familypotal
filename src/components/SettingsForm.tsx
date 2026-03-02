@@ -14,6 +14,7 @@ interface SettingsFormProps {
     allowed_youtube_channel_ids: string[];
     allowed_youtube_playlist_ids: string[];
     daily_watch_limit_minutes: number;
+    role_icons: { papa: string; mama: string; michi: string };
   };
 }
 
@@ -40,6 +41,7 @@ export function SettingsForm({ initial }: SettingsFormProps) {
   const [dailyWatchLimit, setDailyWatchLimit] = useState(
     Number(initial.daily_watch_limit_minutes) || 30
   );
+  const [roleIcons, setRoleIcons] = useState(initial.role_icons ?? { papa: "👨", mama: "👩", michi: "👧" });
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<"success" | "success_need_migration" | "success_need_channel_migration" | "error" | null>(null);
   const [errorDetail, setErrorDetail] = useState<string | null>(null);
@@ -124,6 +126,11 @@ export function SettingsForm({ initial }: SettingsFormProps) {
             .map((s) => getPlaylistId(s))
             .filter((id): id is string => id !== null),
           daily_watch_limit_minutes: Math.max(1, Math.min(1440, dailyWatchLimit)),
+          role_icons: {
+            papa: roleIcons.papa?.trim() || "👨",
+            mama: roleIcons.mama?.trim() || "👩",
+            michi: roleIcons.michi?.trim() || "👧",
+          },
         }),
       });
       if (!res.ok) {
@@ -144,6 +151,30 @@ export function SettingsForm({ initial }: SettingsFormProps) {
 
   return (
     <div className="space-y-6 mt-6">
+      <div className="block">
+        <span className="block text-lg font-bold mb-2">メンバーのアイコン</span>
+        <p className="text-base text-[var(--text-muted)] mb-3">
+          伝言板・チャットで表示するパパ・ママ・みちのアイコンです。絵文字などを1文字入力してください
+        </p>
+        <div className="grid grid-cols-3 gap-4">
+          {(["papa", "mama", "michi"] as const).map((r) => (
+            <label key={r} className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-[var(--text-muted)]">
+                {r === "papa" ? "パパ" : r === "mama" ? "ママ" : "みち"}
+              </span>
+              <input
+                type="text"
+                value={roleIcons[r] ?? ""}
+                onChange={(e) => setRoleIcons((prev) => ({ ...prev, [r]: e.target.value.slice(0, 4) }))}
+                maxLength={4}
+                className="w-full text-center text-2xl px-3 py-2 rounded-xl border-2 border-[var(--border)] focus:border-[var(--accent)] focus:outline-none"
+                placeholder={r === "papa" ? "👨" : r === "mama" ? "👩" : "👧"}
+              />
+            </label>
+          ))}
+        </div>
+      </div>
+
       <label className="block">
         <span className="block text-lg font-bold mb-2">AI システムプロンプト</span>
         <p className="text-base text-[var(--text-muted)] mb-2">

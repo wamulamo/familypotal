@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRole } from "@/contexts/RoleContext";
+import { useRoleIcons } from "@/contexts/RoleIconsContext";
 import type { Message } from "@/types/database";
 
 const BOARD_ORDER: ("papa" | "mama" | "michi")[] = ["papa", "mama", "michi"];
@@ -10,12 +11,6 @@ const ROLE_LABELS: Record<"michi" | "papa" | "mama", string> = {
   michi: "みち",
   papa: "パパ",
   mama: "ママ",
-};
-
-const ROLE_ICONS: Record<"michi" | "papa" | "mama", string> = {
-  papa: "👨",
-  mama: "👩",
-  michi: "👧",
 };
 
 /** 吹き出しの背景・枠 */
@@ -56,6 +51,7 @@ const BOARD_LAST_READ_KEY = "board_last_read";
 
 export function Board() {
   const role = useRole();
+  const roleIcons = useRoleIcons();
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState<Record<"papa" | "mama" | "michi", string>>({
     papa: "",
@@ -166,7 +162,7 @@ export function Board() {
                   className="w-12 h-12 rounded-full flex items-center justify-center text-2xl bg-[var(--surface)] border-2 border-[var(--border)] shadow-sm"
                   aria-hidden
                 >
-                  {ROLE_ICONS[r]}
+                  {roleIcons[r]}
                 </div>
               </div>
 
