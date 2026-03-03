@@ -175,7 +175,7 @@ export function Board() {
       if (!res.ok) {
         alert(data.error || "送信できませんでした");
       } else {
-        setDraft((prev) => ({ ...prev, [r]: "" }));
+        setDraft((prev) => ({ ...prev, [r]: text }));
         load();
       }
     } finally {
