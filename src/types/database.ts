@@ -25,6 +25,13 @@ export interface Message {
   channel?: MessageChannel;
 }
 
+export interface BoardRead {
+  id: string;
+  message_id: string;
+  reader_role: ProfileRole;
+  created_at: string;
+}
+
 export interface ChatSettings {
   id: string;
   thread_id: string | null;

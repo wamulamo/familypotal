@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -30,8 +30,9 @@ export function Sidebar({ role, onNavigate }: { role: "michi" | "papa" | "mama";
   const [boardLatestAt, setBoardLatestAt] = useState<string | null>(null);
   const [lastRead, setLastRead] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
+  // メニュー項目はマウント時に1度だけ取得（設定変更なしに変化しないため）
   useEffect(() => {
     fetch("/api/sidebar-data")
       .then((r) => (r.ok ? r.json() : { items: [], latest_at: null }))
@@ -43,6 +44,15 @@ export function Sidebar({ role, onNavigate }: { role: "michi" | "papa" | "mama";
         setMenuItems([]);
         setBoardLatestAt(null);
       });
+  }, []);
+
+  // ナビ時は未読チェックだけ軽量エンドポイントで更新
+  useEffect(() => {
+    if (pathname === "/board") return;
+    fetch("/api/board/latest")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d) setBoardLatestAt(d.latest_at ?? null); })
+      .catch(() => {});
   }, [pathname]);
 
   useEffect(() => {

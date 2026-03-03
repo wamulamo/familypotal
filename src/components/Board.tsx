@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRole } from "@/contexts/RoleContext";
 import { useRoleIcons } from "@/contexts/RoleIconsContext";
@@ -54,25 +54,37 @@ export function Board() {
   const role = useRole();
   const roleIcons = useRoleIcons();
   const [messages, setMessages] = useState<Message[]>([]);
-  const [draft, setDraft] = useState<Record<"papa" | "mama" | "michi", string>>({
-    papa: "",
-    mama: "",
-    michi: "",
+  // null = 未初期化（サーバー内容をまだ反映していない）、"" = 意図的に空にした
+  const [draft, setDraft] = useState<Record<"papa" | "mama" | "michi", string | null>>({
+    papa: null,
+    mama: null,
+    michi: null,
   });
   const [sending, setSending] = useState(false);
-  const supabase = createClient();
+  // message_id → 読んだ roles[]
+  const [reads, setReads] = useState<Record<string, string[]>>({});
+  const supabase = useMemo(() => createClient(), []);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const res = await fetch("/api/messages?channel=dennnon");
     if (res.ok) {
       const { messages: list } = await res.json();
       setMessages(list ?? []);
     }
-  };
+  }, []);
+
+  const loadReads = useCallback(async (ids: string[]) => {
+    if (ids.length === 0) return;
+    const res = await fetch(`/api/board/reads?ids=${ids.join(",")}`);
+    if (res.ok) {
+      const data = await res.json();
+      setReads(data);
+    }
+  }, []);
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   useEffect(() => {
     const channel = supabase
@@ -95,6 +107,28 @@ export function Board() {
     };
   }, [supabase]);
 
+  // board_reads の Realtime 購読
+  useEffect(() => {
+    const channel = supabase
+      .channel("board-reads")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "board_reads" },
+        (payload) => {
+          const row = payload.new as { message_id: string; reader_role: string };
+          setReads((prev) => {
+            const existing = prev[row.message_id] ?? [];
+            if (existing.includes(row.reader_role)) return prev;
+            return { ...prev, [row.message_id]: [...existing, row.reader_role] };
+          });
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase]);
+
   // 表示時に未読を解消
   useEffect(() => {
     const latest = messages.reduce<string | null>((acc, m) => {
@@ -108,20 +142,27 @@ export function Board() {
     }
   }, [messages]);
 
-  const latestByRole = getLatestByRole(messages);
+  const latestByRole = useMemo(() => getLatestByRole(messages), [messages]);
 
-  // 自分のボックスの既存内容を draft に反映（未入力時のみ）
+  // メッセージ取得後に読んだよ情報を取得
+  useEffect(() => {
+    const ids = BOARD_ORDER
+      .map((r) => latestByRole[r]?.id)
+      .filter((id): id is string => !!id);
+    loadReads(ids);
+  }, [latestByRole, loadReads]);
+
+  // 自分のボックスの既存内容を draft に反映（未初期化時のみ）
   const serverContent = latestByRole[role]?.content?.trim() ?? "";
   useEffect(() => {
     setDraft((prev) => {
-      if (prev[role] !== "") return prev;
-      if (prev[role] === serverContent) return prev;
+      if (prev[role] !== null) return prev; // 初期化済み or ユーザーが編集中
       return { ...prev, [role]: serverContent };
     });
   }, [serverContent, role]);
 
   const save = async (r: "papa" | "mama" | "michi") => {
-    const text = draft[r].trim();
+    const text = (draft[r] ?? "").trim();
     if (sending || r !== role) return;
     setSending(true);
     try {
@@ -142,6 +183,20 @@ export function Board() {
     }
   };
 
+  const markRead = async (messageId: string) => {
+    // 楽観更新
+    setReads((prev) => {
+      const existing = prev[messageId] ?? [];
+      if (existing.includes(role)) return prev;
+      return { ...prev, [messageId]: [...existing, role] };
+    });
+    await fetch("/api/board/reads", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message_id: messageId }),
+    });
+  };
+
   return (
     <div className="flex flex-col h-full max-w-2xl mx-auto w-full overflow-y-auto">
       <div className="p-4 space-y-6">
@@ -149,8 +204,10 @@ export function Board() {
           const msg = latestByRole[r];
           const isOwn = r === role;
           const displayContent = msg?.content?.trim() || "";
-          const value = isOwn ? (draft[r] !== "" ? draft[r] : displayContent) : displayContent;
+          const value = isOwn ? (draft[r] ?? displayContent) : displayContent;
           const style = BUBBLE_STYLES[r];
+          const msgReaders = msg ? (reads[msg.id] ?? []) : [];
+          const hasRead = msg ? msgReaders.includes(role) : false;
 
           return (
             <div key={r} className="flex gap-3 items-start">
@@ -194,6 +251,34 @@ export function Board() {
                     <p className="text-chat-sm whitespace-pre-wrap break-words text-[var(--text)] min-h-[2.5rem]">
                       {displayContent || "（まだ かいてないよ）"}
                     </p>
+                  )}
+
+                  {/* 読んだよ欄: 他人のメッセージのみ、かつメッセージが存在する場合 */}
+                  {!isOwn && msg && displayContent && (
+                    <div className="mt-2 pt-2 border-t border-[var(--border)] flex items-center gap-2">
+                      {/* 既読者アイコン */}
+                      <div className="flex items-center gap-1">
+                        {BOARD_ORDER.filter((rr) => rr !== r && msgReaders.includes(rr)).map((rr) => (
+                          <RoleIcon
+                            key={rr}
+                            role={rr}
+                            value={roleIcons[rr]}
+                            size="sm"
+                            className="opacity-90"
+                          />
+                        ))}
+                      </div>
+                      {/* 読んだよボタン */}
+                      {!hasRead && (
+                        <button
+                          type="button"
+                          onClick={() => markRead(msg.id)}
+                          className="ml-auto px-3 py-1 rounded-lg text-chat-xs font-medium bg-[var(--accent)]/10 text-[var(--accent)] hover:bg-[var(--accent)]/20 transition-colors"
+                        >
+                          読んだよ
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>

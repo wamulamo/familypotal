@@ -255,6 +255,7 @@ export function YoutubePage() {
                         src={v.thumbnailUrl || `https://img.youtube.com/vi/${v.id}/mqdefault.jpg`}
                         alt=""
                         className="w-full h-full object-cover"
+                        loading="lazy"
                       />
                     </div>
                     <p className="p-2 text-chat-xs font-medium text-[var(--text)] line-clamp-2">

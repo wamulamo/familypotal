@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { usePathname } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { createClient } from "@/lib/supabase/client";
@@ -14,20 +14,20 @@ export function AIChat() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const res = await fetch("/api/messages?channel=ai", { cache: "no-store" });
     if (res.ok) {
       const { messages: list } = await res.json();
       setMessages(list ?? []);
     }
-  };
+  }, []);
 
   // マウント時およびAIチャット画面に戻ってきたときに再取得
   useEffect(() => {
     if (pathname === "/ai") load();
-  }, [pathname]);
+  }, [pathname, load]);
 
   // 初回表示時のみ最新（一番下）へスクロール
   const didInitialScroll = useRef(false);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRoleIcons } from "@/contexts/RoleIconsContext";
 import { RoleIcon } from "@/components/RoleIcon";
@@ -27,7 +27,7 @@ export function Chat({ role, displayName }: ChatProps) {
   const [inputTab, setInputTab] = useState<InputTab>("chat");
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const signOut = async () => {
     await supabase.auth.signOut();

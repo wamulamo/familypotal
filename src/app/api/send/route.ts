@@ -85,17 +85,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No thread" }, { status: 500 });
   }
 
+  // michi の場合は後でシステムプロンプトにも使うので先に取得
+  let settings: { system_prompt?: string; ng_words?: string[]; semantic_filter_prompt?: string } | null = null;
+  if (role === "michi") {
+    const { data } = await supabase
+      .from("chat_settings")
+      .select("system_prompt, ng_words, semantic_filter_prompt")
+      .limit(1)
+      .maybeSingle();
+    settings = data;
+  }
+
   let contentToUse = content.trim();
   let isFiltered = false;
 
   if (role === "michi") {
-    const { data: settingsRow } = await supabase
-      .from("chat_settings")
-      .select("ng_words, semantic_filter_prompt")
-      .limit(1)
-      .maybeSingle();
-    const ngWords = (settingsRow?.ng_words as string[]) ?? [];
-    const semanticFilterPrompt = settingsRow?.semantic_filter_prompt ?? "";
+    const ngWords = (settings?.ng_words as string[]) ?? [];
+    const semanticFilterPrompt = settings?.semantic_filter_prompt ?? "";
     if (channel === "dennnon") {
       contentToUse = maskPII(contentToUse);
       if (containsNGWord(contentToUse, ngWords)) isFiltered = true;
@@ -138,7 +144,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: insertErr.message }, { status: 500 });
   }
 
-  await trimChannel(supabase, channel);
+  trimChannel(supabase, channel).catch(() => {});
 
   // 伝言板のときはここで返す（AIは呼ばない）
   if (channel === "dennnon") {
@@ -179,11 +185,15 @@ export async function POST(req: Request) {
     });
   }
 
-  const { data: settings } = await supabase
-    .from("chat_settings")
-    .select("system_prompt, ng_words, semantic_filter_prompt")
-    .limit(1)
-    .maybeSingle();
+  // michi 以外のロールはここで初めて設定取得（michi はすでに取得済み）
+  if (!settings) {
+    const { data } = await supabase
+      .from("chat_settings")
+      .select("system_prompt, ng_words, semantic_filter_prompt")
+      .limit(1)
+      .maybeSingle();
+    settings = data;
+  }
   const baseSystemPrompt = settings?.system_prompt ?? "あなたはやさしいAIです。";
   const ngWords = (settings?.ng_words as string[] | undefined) ?? [];
   const semanticFilterPrompt = (settings?.semantic_filter_prompt as string | undefined) ?? "";
