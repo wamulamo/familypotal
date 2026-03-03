@@ -14,7 +14,6 @@ const ROLE_LABELS: Record<"michi" | "papa" | "mama", string> = {
   mama: "ママ",
 };
 
-/** 吹き出しの背景・枠 */
 const BUBBLE_STYLES: Record<"papa" | "mama" | "michi", { bg: string; border: string }> = {
   papa: { bg: "bg-cyan-50 dark:bg-cyan-950/40", border: "border-cyan-200 dark:border-cyan-700" },
   mama: { bg: "bg-pink-50 dark:bg-pink-950/40", border: "border-pink-200 dark:border-pink-700" },
@@ -54,14 +53,13 @@ export function Board() {
   const role = useRole();
   const roleIcons = useRoleIcons();
   const [messages, setMessages] = useState<Message[]>([]);
-  // null = 未初期化（サーバー内容をまだ反映していない）、"" = 意図的に空にした
-  const [draft, setDraft] = useState<Record<"papa" | "mama" | "michi", string | null>>({
-    papa: null,
-    mama: null,
-    michi: null,
+  // draft は入力中のテキストのみ管理（表示はサーバー内容を直接使う）
+  const [draft, setDraft] = useState<Record<"papa" | "mama" | "michi", string>>({
+    papa: "",
+    mama: "",
+    michi: "",
   });
   const [sending, setSending] = useState(false);
-  // message_id → 読んだ roles[]
   const [reads, setReads] = useState<Record<string, string[]>>({});
   const supabase = useMemo(() => createClient(), []);
 
@@ -107,7 +105,6 @@ export function Board() {
     };
   }, [supabase]);
 
-  // board_reads の Realtime 購読
   useEffect(() => {
     const channel = supabase
       .channel("board-reads")
@@ -144,7 +141,6 @@ export function Board() {
 
   const latestByRole = useMemo(() => getLatestByRole(messages), [messages]);
 
-  // メッセージ取得後に読んだよ情報を取得
   useEffect(() => {
     const ids = BOARD_ORDER
       .map((r) => latestByRole[r]?.id)
@@ -152,30 +148,21 @@ export function Board() {
     loadReads(ids);
   }, [latestByRole, loadReads]);
 
-  // 自分のボックスの既存内容を draft に反映（未初期化時のみ）
-  const serverContent = latestByRole[role]?.content?.trim() ?? "";
-  useEffect(() => {
-    setDraft((prev) => {
-      if (prev[role] !== null) return prev; // 初期化済み or ユーザーが編集中
-      return { ...prev, [role]: serverContent };
-    });
-  }, [serverContent, role]);
-
   const save = async (r: "papa" | "mama" | "michi") => {
-    const text = (draft[r] ?? "").trim();
-    if (sending || r !== role) return;
+    const text = draft[r].trim();
+    if (sending || r !== role || text === "") return;
     setSending(true);
     try {
       const res = await fetch("/api/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: text || " ", role: r, channel: "dennnon" }),
+        body: JSON.stringify({ content: text, role: r, channel: "dennnon" }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         alert(data.error || "送信できませんでした");
       } else {
-        setDraft((prev) => ({ ...prev, [r]: text }));
+        setDraft((prev) => ({ ...prev, [r]: "" }));
         load();
       }
     } finally {
@@ -184,7 +171,6 @@ export function Board() {
   };
 
   const markRead = async (messageId: string) => {
-    // 楽観更新
     setReads((prev) => {
       const existing = prev[messageId] ?? [];
       if (existing.includes(role)) return prev;
@@ -204,14 +190,13 @@ export function Board() {
           const msg = latestByRole[r];
           const isOwn = r === role;
           const displayContent = msg?.content?.trim() || "";
-          const value = isOwn ? (draft[r] ?? displayContent) : displayContent;
           const style = BUBBLE_STYLES[r];
           const msgReaders = msg ? (reads[msg.id] ?? []) : [];
           const hasRead = msg ? msgReaders.includes(role) : false;
 
           return (
             <div key={r} className="flex gap-3 items-start">
-              {/* 左: アイコンの上に「パパ」等のラベル */}
+              {/* 左: ロールラベル＋アイコン */}
               <div className="flex flex-col items-center shrink-0 w-[72px]">
                 <span className="text-chat-xs font-bold text-[var(--text-muted)] mb-1">
                   {ROLE_LABELS[r]}
@@ -221,66 +206,66 @@ export function Board() {
 
               {/* 右: 吹き出し */}
               <div className={`flex-1 min-w-0 rounded-2xl border-2 ${style.bg} ${style.border} pl-4 pr-4 pt-3 pb-3 shadow-sm`}>
-                <div>
-                  {msg?.created_at && (
-                    <p className="text-chat-xs text-[var(--text-muted)] mb-2">
-                      更新: {formatDateTime(msg.created_at)}
-                    </p>
-                  )}
-                  {isOwn ? (
-                    <>
-                      <textarea
-                        value={value}
-                        onChange={(e) => setDraft((prev) => ({ ...prev, [r]: e.target.value }))}
-                        placeholder="でんごんを かいてね"
-                        className="w-full min-h-[100px] text-chat-sm p-3 rounded-xl border border-[var(--border)] bg-white/90 dark:bg-black/20 placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-y"
-                        disabled={sending}
-                      />
-                      <div className="mt-2 flex justify-end">
-                        <button
-                          type="button"
-                          onClick={() => save(r)}
-                          disabled={sending || (value.trim() === "" && !displayContent)}
-                          className="px-4 py-2 rounded-xl bg-[var(--accent)] text-white text-chat-sm font-medium disabled:opacity-50"
-                        >
-                          {sending ? "保存中…" : "保存"}
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <p className="text-chat-sm whitespace-pre-wrap break-words text-[var(--text)] min-h-[2.5rem]">
-                      {displayContent || "（まだ かいてないよ）"}
-                    </p>
-                  )}
+                {/* 更新日時 */}
+                {msg?.created_at && (
+                  <p className="text-chat-xs text-[var(--text-muted)] mb-2">
+                    更新: {formatDateTime(msg.created_at)}
+                  </p>
+                )}
 
-                  {/* 読んだよ欄: メッセージが存在する場合に表示 */}
-                  {msg && displayContent && (
-                    <div className="mt-2 pt-2 border-t border-[var(--border)] flex items-center gap-2">
-                      {/* 既読者アイコン（自分以外のロールで読んだ人） */}
-                      <div className="flex items-center gap-1">
-                        {BOARD_ORDER.filter((rr) => rr !== r && msgReaders.includes(rr)).map((rr) => (
-                          <RoleIcon
-                            key={rr}
-                            role={rr}
-                            value={roleIcons[rr]}
-                            size="sm"
-                            className="opacity-90"
-                          />
-                        ))}
-                      </div>
-                      {/* 読んだよボタン: 他人のメッセージかつ未読の場合のみ */}
-                      {!isOwn && !hasRead && (
-                        <button
-                          type="button"
-                          onClick={() => markRead(msg.id)}
-                          className="ml-auto px-3 py-1 rounded-lg text-chat-xs font-medium bg-[var(--accent)]/10 text-[var(--accent)] hover:bg-[var(--accent)]/20 transition-colors"
-                        >
-                          読んだよ
-                        </button>
-                      )}
+                {/* 現在の内容表示（サーバー内容をそのまま表示・全デバイス共通） */}
+                <p className="text-chat-sm whitespace-pre-wrap break-words text-[var(--text)] min-h-[2.5rem]">
+                  {displayContent || "（まだ かいてないよ）"}
+                </p>
+
+                {/* 読んだよ欄 */}
+                {msg && displayContent && (
+                  <div className="mt-2 pt-2 border-t border-[var(--border)] flex items-center gap-2 min-h-[2rem]">
+                    <div className="flex items-center gap-1">
+                      {BOARD_ORDER.filter((rr) => rr !== r && msgReaders.includes(rr)).map((rr) => (
+                        <RoleIcon
+                          key={rr}
+                          role={rr}
+                          value={roleIcons[rr]}
+                          size="sm"
+                          className="opacity-90"
+                        />
+                      ))}
                     </div>
-                  )}
-                </div>
+                    {!isOwn && !hasRead && (
+                      <button
+                        type="button"
+                        onClick={() => markRead(msg.id)}
+                        className="ml-auto px-3 py-1 rounded-lg text-chat-xs font-medium bg-[var(--accent)]/10 text-[var(--accent)] hover:bg-[var(--accent)]/20 transition-colors"
+                      >
+                        読んだよ
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* 編集エリア（自分のみ） */}
+                {isOwn && (
+                  <div className="mt-3 pt-3 border-t border-[var(--border)]">
+                    <textarea
+                      value={draft[r]}
+                      onChange={(e) => setDraft((prev) => ({ ...prev, [r]: e.target.value }))}
+                      placeholder="あたらしいでんごんを かいてね"
+                      className="w-full min-h-[80px] text-chat-sm p-3 rounded-xl border border-[var(--border)] bg-white/90 dark:bg-black/20 placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-y"
+                      disabled={sending}
+                    />
+                    <div className="mt-2 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => save(r)}
+                        disabled={sending || draft[r].trim() === ""}
+                        className="px-4 py-2 rounded-xl bg-[var(--accent)] text-white text-chat-sm font-medium disabled:opacity-50"
+                      >
+                        {sending ? "保存中…" : "保存"}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           );
