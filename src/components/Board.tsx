@@ -212,11 +212,11 @@ export function Board() {
           return (
             <div key={r} className="flex gap-3 items-start">
               {/* 左: アイコンの上に「パパ」等のラベル */}
-              <div className="flex flex-col items-center shrink-0 w-14">
+              <div className="flex flex-col items-center shrink-0 w-[72px]">
                 <span className="text-chat-xs font-bold text-[var(--text-muted)] mb-1">
                   {ROLE_LABELS[r]}
                 </span>
-                <RoleIcon role={r} value={roleIcons[r]} size="md" className="shadow-sm" />
+                <RoleIcon role={r} value={roleIcons[r]} size="lg" className="shadow-sm" />
               </div>
 
               {/* 右: 吹き出し */}
