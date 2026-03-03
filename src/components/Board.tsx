@@ -253,10 +253,10 @@ export function Board() {
                     </p>
                   )}
 
-                  {/* 読んだよ欄: 他人のメッセージのみ、かつメッセージが存在する場合 */}
-                  {!isOwn && msg && displayContent && (
+                  {/* 読んだよ欄: メッセージが存在する場合に表示 */}
+                  {msg && displayContent && (
                     <div className="mt-2 pt-2 border-t border-[var(--border)] flex items-center gap-2">
-                      {/* 既読者アイコン */}
+                      {/* 既読者アイコン（自分以外のロールで読んだ人） */}
                       <div className="flex items-center gap-1">
                         {BOARD_ORDER.filter((rr) => rr !== r && msgReaders.includes(rr)).map((rr) => (
                           <RoleIcon
@@ -268,8 +268,8 @@ export function Board() {
                           />
                         ))}
                       </div>
-                      {/* 読んだよボタン */}
-                      {!hasRead && (
+                      {/* 読んだよボタン: 他人のメッセージかつ未読の場合のみ */}
+                      {!isOwn && !hasRead && (
                         <button
                           type="button"
                           onClick={() => markRead(msg.id)}
