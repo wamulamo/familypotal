@@ -49,6 +49,9 @@ function getLatestByRole(messages: Message[]): Record<"papa" | "mama" | "michi",
 
 const BOARD_LAST_READ_KEY = "board_last_read";
 
+// threadId はセッション中に変化しないのでモジュール変数でキャッシュ
+let _boardThreadId: string | null = null;
+
 export function Board() {
   const role = useRole();
   const roleIcons = useRoleIcons();
@@ -63,22 +66,39 @@ export function Board() {
   const [reads, setReads] = useState<Record<string, string[]>>({});
   const supabase = useMemo(() => createClient(), []);
 
+  // Supabase を直接クエリ（API Route 経由のラウンドトリップを省略）
   const load = useCallback(async () => {
-    const res = await fetch("/api/messages?channel=dennnon");
-    if (res.ok) {
-      const { messages: list } = await res.json();
-      setMessages(list ?? []);
+    if (!_boardThreadId) {
+      const { data } = await supabase
+        .from("threads")
+        .select("id")
+        .order("created_at", { ascending: true })
+        .limit(1);
+      _boardThreadId = data?.[0]?.id ?? null;
     }
-  }, []);
+    if (!_boardThreadId) return;
+    const { data } = await supabase
+      .from("messages")
+      .select("id, thread_id, role, content, created_at, channel")
+      .eq("thread_id", _boardThreadId)
+      .eq("channel", "dennnon")
+      .order("created_at", { ascending: true });
+    setMessages((data as Message[]) ?? []);
+  }, [supabase]);
 
   const loadReads = useCallback(async (ids: string[]) => {
     if (ids.length === 0) return;
-    const res = await fetch(`/api/board/reads?ids=${ids.join(",")}`);
-    if (res.ok) {
-      const data = await res.json();
-      setReads(data);
+    const { data } = await supabase
+      .from("board_reads")
+      .select("message_id, reader_role")
+      .in("message_id", ids);
+    const result: Record<string, string[]> = {};
+    for (const row of (data ?? []) as { message_id: string; reader_role: string }[]) {
+      if (!result[row.message_id]) result[row.message_id] = [];
+      result[row.message_id].push(row.reader_role);
     }
-  }, []);
+    setReads(result);
+  }, [supabase]);
 
   useEffect(() => {
     load();

@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 const BOARD_LAST_READ_KEY = "board_last_read";
+const MENU_CACHE_KEY = "sidebar_menu_v1";
+const MENU_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h（常にバックグラウンドで更新）
 
 function GearIcon() {
   return (
@@ -23,6 +25,24 @@ interface MenuItem {
   icon?: string;
 }
 
+function readMenuCache(): MenuItem[] | null {
+  try {
+    const raw = localStorage.getItem(MENU_CACHE_KEY);
+    if (!raw) return null;
+    const { items, ts } = JSON.parse(raw);
+    if (Date.now() - ts > MENU_CACHE_TTL_MS) return null;
+    return items;
+  } catch {
+    return null;
+  }
+}
+
+function writeMenuCache(items: MenuItem[]) {
+  try {
+    localStorage.setItem(MENU_CACHE_KEY, JSON.stringify({ items, ts: Date.now() }));
+  } catch {}
+}
+
 export function Sidebar({ role, onNavigate }: { role: "michi" | "papa" | "mama"; onNavigate?: () => void }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -32,29 +52,42 @@ export function Sidebar({ role, onNavigate }: { role: "michi" | "papa" | "mama";
   const menuRef = useRef<HTMLDivElement>(null);
   const supabase = useMemo(() => createClient(), []);
 
-  // メニュー項目はマウント時に1度だけ取得（設定変更なしに変化しないため）
+  // メニュー項目: キャッシュがあれば即表示、常にバックグラウンドで最新を取得してキャッシュ更新
   useEffect(() => {
+    const cached = readMenuCache();
+    if (cached) setMenuItems(cached);
+
     fetch("/api/sidebar-data")
       .then((r) => (r.ok ? r.json() : { items: [], latest_at: null }))
       .then((d) => {
-        setMenuItems(d?.items ?? []);
+        const items = d?.items ?? [];
+        setMenuItems(items);
         setBoardLatestAt(d?.latest_at ?? null);
+        writeMenuCache(items);
       })
-      .catch(() => {
-        setMenuItems([]);
-        setBoardLatestAt(null);
-      });
+      .catch(() => {});
   }, []);
 
-  // ナビ時は未読チェックだけ軽量エンドポイントで更新
+  // Realtime で dennnon チャンネルの新着メッセージを監視 → pathname ポーリング不要
   useEffect(() => {
-    if (pathname === "/board") return;
-    fetch("/api/board/latest")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (d) setBoardLatestAt(d.latest_at ?? null); })
-      .catch(() => {});
-  }, [pathname]);
+    const channel = supabase
+      .channel("sidebar-board")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "messages" },
+        (payload) => {
+          const row = payload.new as { channel?: string; created_at?: string };
+          if (row.channel !== "dennnon") return;
+          if (row.created_at) setBoardLatestAt(row.created_at);
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase]);
 
+  // pathname 変化時は localStorage の lastRead だけ更新（API 呼び出しなし）
   useEffect(() => {
     try {
       setLastRead(localStorage.getItem(BOARD_LAST_READ_KEY));
