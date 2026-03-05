@@ -3,7 +3,7 @@
  * 要: .env.local に YOUTUBE_API_KEY（Google Cloud で YouTube Data API v3 を有効化したAPIキー）
  */
 
-const MAX_VIDEOS_PER_CHANNEL = 30;
+const MAX_VIDEOS_PER_CHANNEL = 10;
 const PLAYLIST_PAGE_SIZE = 50;
 const MAX_SHORTS_FETCH = 500;
 
@@ -42,16 +42,21 @@ async function fetchShortsVideoIdsByChannelId(
   return set;
 }
 
+export interface VideoIdWithDate {
+  id: string;
+  publishedAt: string;
+}
+
 /** チャンネルの動画一覧を取得し、UUSH（Shorts）プレイリストに含まれる動画は除外する */
 export async function fetchVideoIdsByChannelId(
   channelId: string,
   apiKey: string
-): Promise<string[]> {
+): Promise<VideoIdWithDate[]> {
   const url = new URL("https://www.googleapis.com/youtube/v3/search");
   url.searchParams.set("key", apiKey);
   url.searchParams.set("channelId", channelId);
   url.searchParams.set("type", "video");
-  url.searchParams.set("part", "id");
+  url.searchParams.set("part", "id,snippet");
   url.searchParams.set("order", "date");
   url.searchParams.set("maxResults", String(MAX_VIDEOS_PER_CHANNEL));
 
@@ -61,14 +66,17 @@ export async function fetchVideoIdsByChannelId(
     throw new Error(`YouTube API: ${res.status} ${err}`);
   }
   const data = (await res.json()) as {
-    items?: Array<{ id?: { videoId?: string } }>;
+    items?: Array<{ id?: { videoId?: string }; snippet?: { publishedAt?: string } }>;
   };
-  const ids = (data.items ?? [])
-    .map((item) => item.id?.videoId)
-    .filter((id): id is string => Boolean(id));
+  const items = (data.items ?? [])
+    .map((item) => ({
+      id: item.id?.videoId ?? "",
+      publishedAt: item.snippet?.publishedAt ?? "",
+    }))
+    .filter((item) => Boolean(item.id));
 
   const shortsIds = await fetchShortsVideoIdsByChannelId(channelId, apiKey);
-  return ids.filter((id) => !shortsIds.has(id));
+  return items.filter((item) => !shortsIds.has(item.id));
 }
 
 /** プレイリストに含まれる動画IDを取得（最大100件まで。ページネーション対応） */
